@@ -8,6 +8,7 @@ on:
 env:
   AWS_REGION: us-east-1
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  ECR_REPO: bookmanager
 
 jobs:
   build:
@@ -26,23 +27,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.x'
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_URI }}
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
       - name: Build Docker Image
-        working-directory: ./BookManager
         run: |
-          IMAGE_URI=${{ secrets.AWS_ECR_URI }}:latest
-          dotnet publish -c Release -p:ContainerRepository=${{ secrets.AWS_ECR_URI }} -p:RuntimeIdentifier=linux-x64
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
+          docker build -t $IMAGE_URI ./BookManager
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
       - name: Push Docker Image to ECR
         run: docker push ${{ env.IMAGE_URI }}
 
@@ -51,11 +53,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update ECS Task Definition
+        run: |
+          sed -i "s|<IMAGE_URI>|${IMAGE_URI}|g" ./deployments/ecs-task-definition.json
+
       - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ./deployments/ecs-task-definition.json
