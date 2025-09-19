@@ -60,5 +60,5 @@ jobs:
         with:
           task-definition: ./deployments/ecs-task-definition.json
           service: bookmanager
-          cluster: bookmanager-cluster
+          cluster: bookmanager-sp
           wait-for-service-stability: true
