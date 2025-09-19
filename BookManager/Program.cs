@@ -22,7 +22,8 @@ app.UseAuthorization();
 // Map controllers
 app.MapControllers();
 
-// Add minimal API endpoint
+// Add  minimal API endpoint
 app.MapGet("/", () => "Hello World!");
 
 app.Run();
+
